@@ -21,7 +21,7 @@ public class DemoApplication {
 		// GOOGLE_API_KEY
 		try (Client client = Client.builder().apiKey(apiKey).build();) {
 			GenerateContentResponse response =
-					client.models.generateContent("gemini-2.0-flash", req.text, null);
+					client.models.generateContent("gemini-2.0-flash", req.text + " 앞의 요청에 대해서 일본어로 답해줘.", null);
 			return new ChatResponse(response.text());
 		}
 	}
