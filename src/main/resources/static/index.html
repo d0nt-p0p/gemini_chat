@@ -1,13 +1,181 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Chat</title>
+    <title>Simple Chatbot</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f9;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #chat-window {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 70%;
+            line-height: 1.4;
+        }
+        .user-message {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-message {
+            background-color: #e9ecef;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        #chat-form {
+            display: flex;
+            border-top: 1px solid #ddd;
+            padding: 10px;
+        }
+        #message-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 16px;
+            outline: none;
+        }
+        #message-input:focus {
+            border-color: #007bff;
+        }
+        #send-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            margin-left: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
 </head>
 <body>
+
+<div id="chat-window">
+    <div id="chat-container"></div>
+    <form id="chat-form">
+        <input type="text" id="message-input" placeholder="메시지를 입력하세요..." autocomplete="off">
+        <button id="send-button" type="submit">➤</button>
+    </form>
+</div>
+
+<script>
+    // DOM 요소 가져오기
+    const chatContainer = document.getElementById('chat-container');
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message-input');
+
+    // localStorage 키 정의
+    const CHAT_HISTORY_KEY = 'chatHistory';
+
+    // 1. 메시지를 화면에 표시하는 함수
+    const displayMessage = (sender, text) => {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', sender === 'user' ? 'user-message' : 'bot-message');
+        messageElement.innerText = text;
+        chatContainer.appendChild(messageElement);
+        // 스크롤을 항상 아래로 이동
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    };
+
+    // 2. localStorage에서 대화 기록을 불러와 화면에 표시하는 함수
+    const loadChatHistory = () => {
+        const history = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY)) || [];
+        history.forEach(msg => displayMessage(msg.sender, msg.text));
+    };
+
+    // 3. localStorage에 대화 기록을 저장하는 함수
+    const saveMessageToHistory = (sender, text) => {
+        const history = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY)) || [];
+        history.push({ sender, text });
+        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
+    };
+
+    // 4. 폼 제출(메시지 전송) 이벤트 처리
+    chatForm.addEventListener('submit', async (event) => {
+        event.preventDefault(); // 폼 제출 시 페이지 새로고침 방지
+
+        const userText = messageInput.value.trim();
+        if (userText === '') return; // 입력 내용이 없으면 전송하지 않음
+
+        // 사용자 메시지 화면에 표시 및 저장
+        displayMessage('user', userText);
+        saveMessageToHistory('user', userText);
+        messageInput.value = ''; // 입력창 비우기
+
+        try {
+            // 서버에 메시지 전송 (POST /chat)
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: userText }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            // 서버로부터 받은 응답 처리
+            const data = await response.json();
+            // 서버 응답이 {text: "..."} 형태라고 가정
+            const botText = data.text || "죄송해요, 응답을 받지 못했어요.";
+
+            // 봇 메시지 화면에 표시 및 저장
+            displayMessage('bot', botText);
+            saveMessageToHistory('bot', botText);
+
+        } catch (error) {
+            console.error('Error fetching chat response:', error);
+            const errorMessage = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+            displayMessage('bot', errorMessage);
+            saveMessageToHistory('bot', errorMessage);
+        }
+    });
+
+    // 페이지가 로드될 때 대화 기록 불러오기
+    document.addEventListener('DOMContentLoaded', loadChatHistory);
+</script>
 
 </body>
 </html>
